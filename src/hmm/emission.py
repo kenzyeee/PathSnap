@@ -21,8 +21,8 @@ class EmissionModel:
     """
     def __init__(
         self,
-        sigma_z: float = 4.5,            # GPS measurement error std dev (meters)
-        classifier_weight: float = 2.8,  # Relative importance of classifier confidence
+        sigma_z: float = 5.0,            # GPS measurement error std dev (meters)
+        classifier_weight: float = 3.5,  # Relative importance of classifier confidence
         min_clf_prob: float = 1e-5       # Prevents log(0) numerical underflow
     ):
         self.sigma_z = sigma_z

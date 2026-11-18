@@ -64,20 +64,42 @@ app.add_middleware(
 # Global in-memory cache for artifacts
 MODEL_PIPELINE = None
 HMM_MATCHER = None
-EVAL_DATA_DIR = os.getenv("EVAL_DATA_DIR", "data/Student folder/student_test")
+MODEL_INFO = {
+    "model_name": "LambdaRank",
+    "algorithm": "Learning-to-Rank (LambdaMART)",
+    "optimized_lambda": 0.60,
+    "ndcg_objective": "NDCG@1"
+}
+BASE_DATA_DIR = os.getenv("BASE_DATA_DIR", "data/Student folder")
+EVAL_DATA_DIR = os.getenv("EVAL_DATA_DIR", "data/Student folder/evaluator_test" if os.path.exists("data/Student folder/evaluator_test") else "data/Student folder/student_test")
 MODEL_PATH = os.getenv("MODEL_PATH", "artifacts/models/best_tuned_model.joblib")
+
+
+def resolve_trip_dir(trip_id: str) -> tuple[str, str]:
+    """Finds directory and partition for a given trip_id."""
+    trip_id = trip_id.strip()
+    # Check evaluator_test first, then student_test, then train
+    for part in ["evaluator_test", "student_test", "train"]:
+        p = os.path.join(BASE_DATA_DIR, part, trip_id)
+        if os.path.exists(p):
+            return p, part
+    # Check fallback EVAL_DATA_DIR
+    p = os.path.join(EVAL_DATA_DIR, trip_id)
+    if os.path.exists(p):
+        return p, os.path.basename(EVAL_DATA_DIR)
+    raise FileNotFoundError(f"Trip ID '{trip_id}' not found in any data directory.")
 
 
 @app.on_event("startup")
 def load_artifacts():
     """Loads trained model pipeline and initializes HMM matcher at server startup."""
-    global MODEL_PIPELINE, HMM_MATCHER
+    global MODEL_PIPELINE, HMM_MATCHER, MODEL_INFO
     logger.info("Initializing PathSnap API Server...")
     
-    # Check if best_tuned_model exists, fallback to HistGradientBoosting or RandomForest
     candidate_paths = [
         MODEL_PATH,
         "artifacts/models/best_tuned_model.joblib",
+        "artifacts/models/lambdarank_model.joblib",
         "artifacts/models/HistGradientBoosting.joblib",
         "artifacts/models/RandomForest.joblib",
         "artifacts/models/LogisticRegression.joblib"
@@ -90,6 +112,17 @@ def load_artifacts():
                 MODEL_PIPELINE = joblib.load(path)
                 logger.info(f"Loaded trained model artifact from: {path}")
                 loaded = True
+                
+                # Extract metadata
+                cls_name = type(MODEL_PIPELINE).__name__
+                if "LambdaRank" in cls_name:
+                    MODEL_INFO["model_name"] = "LambdaRank (Optimized LambdaMART)"
+                    MODEL_INFO["algorithm"] = "Learning-to-Rank (LTR)"
+                    MODEL_INFO["optimized_lambda"] = getattr(MODEL_PIPELINE, "optimized_lambda_", 0.60)
+                else:
+                    MODEL_INFO["model_name"] = cls_name
+                    MODEL_INFO["algorithm"] = "Calibrated Pointwise Classifier"
+                    MODEL_INFO["optimized_lambda"] = 0.60
                 break
             except Exception as e:
                 logger.warning(f"Failed to load {path}: {e}")
@@ -99,61 +132,81 @@ def load_artifacts():
         
     # Initialize HMM matcher with calibrated parameters
     HMM_MATCHER = HMMMapMatcher(
-        sigma_z=4.5,
-        beta=3.2,
-        classifier_weight=2.8,
+        sigma_z=5.0,
+        beta=2.5,
+        classifier_weight=3.5,
         max_graph_dist=200.0,
         large_gap_thresh_s=12.0
     )
+    HMM_MATCHER.transition_model.unreachable_log_penalty = -50.0
     logger.info(f"HMM Viterbi Decoder initialized. Default evaluation directory: {EVAL_DATA_DIR}")
 
 
 # Request & Response Schemas
 class PredictRequest(BaseModel):
-    trip_id: str = Field(..., description="ID of the trip to predict (e.g. '00000000')")
+    trip_id: str = Field(..., description="ID of the trip to predict (e.g. '00000015' or '00000000')")
     include_ground_truth: bool = Field(False, description="Whether to include GT route coordinates in response (default: False)")
 
 
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
+    model_name: Optional[str] = None
+    algorithm: Optional[str] = None
+    optimized_lambda: Optional[float] = None
     eval_data_dir: str
     available_trips_count: int
+    partitions: Dict[str, List[str]] = {}
 
 
 @app.get("/health", response_model=HealthResponse)
 def health_check():
     """Health check endpoint: verifies model readiness and available trips."""
-    trips = []
-    if os.path.exists(EVAL_DATA_DIR):
-        trips = [
-            d for d in os.listdir(EVAL_DATA_DIR)
-            if os.path.isdir(os.path.join(EVAL_DATA_DIR, d)) and not d.startswith(".")
-        ]
+    partitions = {}
+    total_trips = 0
+    for part in ["evaluator_test", "student_test"]:
+        part_dir = os.path.join(BASE_DATA_DIR, part)
+        if os.path.exists(part_dir):
+            tids = sorted([
+                d for d in os.listdir(part_dir)
+                if os.path.isdir(os.path.join(part_dir, d)) and not d.startswith(".")
+            ])
+            partitions[part] = tids
+            total_trips += len(tids)
+
     return HealthResponse(
         status="healthy",
         model_loaded=(MODEL_PIPELINE is not None),
+        model_name=MODEL_INFO.get("model_name"),
+        algorithm=MODEL_INFO.get("algorithm"),
+        optimized_lambda=MODEL_INFO.get("optimized_lambda"),
         eval_data_dir=EVAL_DATA_DIR,
-        available_trips_count=len(trips)
+        available_trips_count=total_trips,
+        partitions=partitions
     )
 
 
 @app.get("/trips")
-def list_trips():
-    """Returns the list of trip IDs available in EVAL_DATA_DIR."""
-    if not os.path.exists(EVAL_DATA_DIR):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Evaluation data directory not found: {EVAL_DATA_DIR}"
-        )
-    trip_ids = sorted([
-        d for d in os.listdir(EVAL_DATA_DIR)
-        if os.path.isdir(os.path.join(EVAL_DATA_DIR, d)) and not d.startswith(".")
-    ])
+def list_trips(partition: Optional[str] = Query(None)):
+    """Returns available trips across evaluator_test and student_test."""
+    partitions = {}
+    all_trips = []
+    
+    parts_to_scan = [partition] if partition else ["evaluator_test", "student_test"]
+    for part in parts_to_scan:
+        part_dir = os.path.join(BASE_DATA_DIR, part)
+        if os.path.exists(part_dir):
+            tids = sorted([
+                d for d in os.listdir(part_dir)
+                if os.path.isdir(os.path.join(part_dir, d)) and not d.startswith(".")
+            ])
+            partitions[part] = tids
+            all_trips.extend(tids)
+            
     return {
-        "eval_data_dir": EVAL_DATA_DIR,
-        "trip_count": len(trip_ids),
-        "trips": trip_ids
+        "partitions": partitions,
+        "trip_count": len(all_trips),
+        "trips": sorted(list(set(all_trips)))
     }
 
 
@@ -172,13 +225,14 @@ def predict_trip(req: PredictRequest):
     """
     t_start = time.time()
     trip_id = req.trip_id.strip()
-    trip_dir = os.path.join(EVAL_DATA_DIR, trip_id)
-
-    if not os.path.exists(trip_dir):
-        logger.error(f"Trip not found: {trip_id} in {EVAL_DATA_DIR}")
+    try:
+        trip_dir, partition_name = resolve_trip_dir(trip_id)
+        parent_dir = os.path.dirname(trip_dir)
+    except FileNotFoundError:
+        logger.error(f"Trip not found: {trip_id} across {BASE_DATA_DIR}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Trip ID '{trip_id}' not found in {EVAL_DATA_DIR}"
+            detail=f"Trip ID '{trip_id}' not found in {BASE_DATA_DIR}"
         )
 
     if MODEL_PIPELINE is None:
@@ -189,7 +243,7 @@ def predict_trip(req: PredictRequest):
 
     # 1. Load Trip Data (load_route=False STRICTLY ENFORCED)
     try:
-        trip = load_trip_data(trip_id, EVAL_DATA_DIR, load_route=False)
+        trip = load_trip_data(trip_id, parent_dir, load_route=False)
     except Exception as e:
         logger.error(f"Failed to load trip {trip_id}: {e}")
         raise HTTPException(
@@ -198,7 +252,7 @@ def predict_trip(req: PredictRequest):
         )
 
     # 2. Candidate Generation
-    cg = CandidateGenerator(trip, search_radius_m=65.0, sample_spacing_m=35.0, max_candidates=15, min_candidates=3)
+    cg = CandidateGenerator(trip, search_radius_m=65.0, sample_spacing_m=20.0, max_candidates=15, min_candidates=3)
     candidates = cg.generate_all_candidates()
 
     # 3. Feature Extraction
@@ -253,6 +307,8 @@ def predict_trip(req: PredictRequest):
 
     response_payload = {
         "trip_id": trip_id,
+        "partition": partition_name,
+        "model_info": MODEL_INFO,
         "num_observations": len(trip.track),
         "latency_ms": round(latency_ms, 2),
         "predicted_point_arcs": hmm_point_arcs,

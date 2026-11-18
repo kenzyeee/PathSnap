@@ -24,10 +24,10 @@ class TransitionModel:
     """
     def __init__(
         self,
-        beta: float = 3.2,                 # Transition discrepancy parameter in meters
+        beta: float = 2.5,                 # Transition discrepancy parameter in meters
         max_graph_dist: float = 200.0,     # Max search distance for graph shortest paths
         large_gap_thresh_s: float = 12.0,  # Time delta threshold to reset transition chain
-        unreachable_log_penalty: float = -13.815  # Equivalent to log(1e-6) for invalid transitions
+        unreachable_log_penalty: float = -50.0  # Heavy penalty for topologically disconnected transitions
     ):
         self.beta = beta
         self.max_graph_dist = max_graph_dist

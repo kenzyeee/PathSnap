@@ -89,7 +89,10 @@ with st.sidebar:
     if health:
         st.success(f"Connected to API ({health['status'].upper()})")
         if health.get("model_loaded"):
-            st.info("Model Status: **Loaded & Ready**")
+            m_name = health.get("model_name", "LambdaRank (Optimized LambdaMART)")
+            algo = health.get("algorithm", "Learning-to-Rank (LTR)")
+            opt_lambda = health.get("optimized_lambda", 0.60)
+            st.info(f"🎯 **Active Model:** `{m_name}`\n\n- **Family:** {algo}\n- **Optimized $\\lambda$:** `{opt_lambda}`\n- **Objective:** NDCG@1")
         else:
             st.warning("Model Status: Not loaded yet")
     else:
@@ -109,21 +112,29 @@ with st.sidebar:
 st.markdown('<div class="main-header">PathSnap: Distributed Map-Matching & Route Reconstruction</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Evaluator Interface (Laptop 2) connecting to Server Model & Decoder (Laptop 1)</div>', unsafe_allow_html=True)
 
-trips = get_api_trips(api_url)
-
-if not trips:
-    st.warning("No evaluation trips found from the backend API. Please check server connection.")
-    # Fallback default IDs for demonstration
-    trips = ["00000000", "00000007", "00000009", "00000040", "00000041", "00000057", "00000075", "00000080", "00000085", "00000087"]
+available_partitions = health.get("partitions", {}) if health else {}
+if not available_partitions:
+    available_partitions = {
+        "evaluator_test": ["00000015", "00000017", "00000023", "00000030", "00000049", "00000059", "00000067", "00000073", "00000087", "00000094"],
+        "student_test": ["00000000", "00000007", "00000009", "00000040", "00000052", "00000056", "00000065", "00000076", "00000077", "00000091"]
+    }
 
 # Trip Selection Row
-col_sel, col_btn = st.columns([3, 1])
+col_part, col_sel, col_btn = st.columns([1.5, 2.5, 1])
+with col_part:
+    selected_part = st.selectbox(
+        "Evaluation Partition:",
+        options=list(available_partitions.keys()),
+        index=0,
+        help="Choose between evaluator_test (new evaluation set) and student_test."
+    )
 with col_sel:
+    trip_options = available_partitions.get(selected_part, [])
     selected_trip = st.selectbox(
         "Select Evaluation Trip:",
-        options=trips,
+        options=trip_options,
         index=0,
-        help="Select any one of the 10 evaluation trips."
+        help="Select any trip from the chosen partition."
     )
 with col_btn:
     st.write("") # spacing
@@ -157,7 +168,12 @@ if "result_data" in st.session_state and st.session_state["result_data"].get("tr
     roundtrip = st.session_state.get("roundtrip_ms", 0.0)
     
     st.markdown("---")
-    st.subheader(f"📊 Results for Trip: `{data['trip_id']}`")
+    part_label = data.get("partition", selected_part)
+    m_info = data.get("model_info", {})
+    m_name = m_info.get("model_name", "LambdaRank (Optimized LambdaMART)")
+    opt_lam = m_info.get("optimized_lambda", 0.60)
+    st.subheader(f"📊 Results for Trip: `{data['trip_id']}` ({part_label})")
+    st.caption(f"🚀 **Model Pipeline:** {m_name} | **Calibrated $\\lambda$:** `{opt_lam}` | **Objective:** NDCG@1 Ranking")
     
     # Key Metrics Row
     m1, m2, m3, m4, m5 = st.columns(5)

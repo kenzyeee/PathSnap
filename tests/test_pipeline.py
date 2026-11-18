@@ -174,3 +174,29 @@ def test_route_reconstruction_and_continuity():
     assert result["geojson"]["type"] == "FeatureCollection"
     assert len(result["geojson"]["features"]) == 3
 
+
+def test_lambdarank_model_ranking_and_calibration():
+    """
+    Tests LambdaRank model training, prediction, and post-training lambda scaling.
+    """
+    from src.models.lambdarank import LambdaRankModel, LambdaRankEnsembleModel
+
+    # 4 queries of 5 candidates each
+    X = np.random.RandomState(42).randn(20, len(FEATURE_COLUMNS))
+    y = np.array([1, 0, 0, 0, 0,  0, 1, 0, 0, 0,  0, 0, 1, 0, 0,  1, 0, 0, 0, 0], dtype=np.int32)
+    group = [5, 5, 5, 5]
+
+    model = LambdaRankModel(n_estimators=10, random_state=42)
+    model.fit(X, y, group=group)
+
+    scores = model.predict(X)
+    assert len(scores) == 20
+
+    # Test calibrated probabilities with lambda parameter
+    model.set_optimized_lambda(0.60)
+    assert model.optimized_lambda_ == 0.60
+    probs = model.predict_proba(X)
+    assert probs.shape == (20, 2)
+    assert np.allclose(probs.sum(axis=1), 1.0)
+
+

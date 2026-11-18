@@ -24,7 +24,7 @@ class CandidateGenerator:
         self,
         trip: TripData,
         search_radius_m: float = 65.0,
-        sample_spacing_m: float = 35.0,
+        sample_spacing_m: float = 20.0,
         max_candidates: int = 15,
         min_candidates: int = 3
     ):

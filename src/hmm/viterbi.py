@@ -23,9 +23,9 @@ class HMMMapMatcher:
     """
     def __init__(
         self,
-        sigma_z: float = 4.5,
-        beta: float = 3.2,
-        classifier_weight: float = 2.8,
+        sigma_z: float = 5.0,
+        beta: float = 2.5,
+        classifier_weight: float = 3.5,
         max_graph_dist: float = 200.0,
         large_gap_thresh_s: float = 12.0
     ):
