@@ -1,0 +1,19 @@
+feature_name,category,units,description,importance_rank
+perp_dist,Geometric,meters,Orthogonal distance from GPS point to road segment,1
+dist_rank,Ranking,integer,Perpendicular distance rank among candidates at observation t,2
+rel_dist,Geometric,meters,Excess distance above the closest candidate (perp_dist - min_perp_dist),3
+bearing_diff,Kinematic,degrees,Angular difference between GPS travel direction and road arc azimuth,4
+bearing_cosine,Kinematic,"[-1, 1]",Cosine similarity of GPS heading vector and segment vector,5
+connected_to_prev_closest,Topological,binary (0/1),Indicator whether candidate connects topologically to preceding top candidate,6
+proj_fraction,Geometric,"[0, 1]","Normalized projection position along road arc segment u in [0, 1]",7
+proj_dist_along,Geometric,meters,Linear distance from arc start node to projected GPS point,8
+dist_to_start,Geometric,meters,Euclidean distance from GPS point to arc start node,9
+dist_to_end,Geometric,meters,Euclidean distance from GPS point to arc end node,10
+arc_length,Geometric,meters,Total physical length of road segment arc,11
+gps_speed,Kinematic,m/s,Estimated instantaneous vehicle speed between consecutive GPS points,12
+gps_accel,Kinematic,m/s^2,Estimated vehicle acceleration/deceleration rate,13
+num_candidates,Contextual,count,Total number of candidate road segments generated for observation t,14
+time_gap,Kinematic,seconds,Time difference delta t from previous GPS observation,15
+turn_angle,Kinematic,degrees,Heading change between preceding and current velocity vectors,16
+start_in_degree,Topological,degree,In-degree of the arc starting intersection node in road network,17
+end_out_degree,Topological,degree,Out-degree of the arc ending intersection node in road network,18
