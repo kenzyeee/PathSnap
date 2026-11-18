@@ -1,0 +1,34 @@
+# PathSnap HMM & Viterbi Route Reconstruction Evaluation Log
+
+Generated from actual execution across all 10 student-test trips.
+
+## Overall Performance Summary
+
+- **Classifier-Only Accuracy:** 85.68%
+- **Classifier + HMM Accuracy:** **91.81%**
+- **Accuracy Improvement:** **+6.13%**
+- **Route Continuity Improvement:** 91.71% -> **99.92%**
+- **Mean Route Sequence F1-score:** 0.8562
+- **Mean Route Jaccard Similarity:** 0.7583
+- **Average Inference Latency:** 1404.0 ms / trip
+
+## Per-Trip Comparison Table
+
+|   trip_id |   num_points |   classifier_acc_pct |   hmm_acc_pct |   accuracy_gain_pct |   classifier_continuity_pct |   hmm_continuity_pct |   route_precision |   route_recall |   route_f1 |   route_jaccard |   gt_route_arcs |   reconstructed_arcs |   clf_infer_ms |   hmm_decode_ms |   total_ms |
+|----------:|-------------:|---------------------:|--------------:|--------------------:|----------------------------:|---------------------:|------------------:|---------------:|-----------:|----------------:|----------------:|---------------------:|---------------:|----------------:|-----------:|
+|  00000000 |         2503 |                93.17 |         95.81 |                2.64 |                       96.2  |                99.31 |            0.7873 |         0.9721 |     0.87   |          0.7699 |             179 |                  289 |           62.9 |           476.6 |     1137.9 |
+|  00000007 |         1354 |                92.54 |         99.34 |                6.8  |                       99.48 |               100    |            0.9837 |         0.9837 |     0.9837 |          0.968  |             123 |                  123 |           21.6 |           253.3 |      462.2 |
+|  00000009 |         1049 |                84.27 |         89.04 |                4.77 |                       86.35 |               100    |            0.8753 |         0.9814 |     0.9253 |          0.8609 |             429 |                  496 |           25.5 |           719.2 |     1114.9 |
+|  00000040 |         2995 |                89.85 |         95.33 |                5.48 |                       95.36 |               100    |            0.9567 |         1      |     0.9778 |          0.9567 |             309 |                  373 |           78.8 |           679   |     1626.9 |
+|  00000052 |          262 |                94.66 |         97.33 |                2.67 |                       93.87 |               100    |            0.5314 |         0.9789 |     0.6889 |          0.5254 |              95 |                  184 |           20.4 |           182.8 |      363.3 |
+|  00000056 |         3958 |                87.39 |         93.43 |                6.04 |                       88.86 |                99.94 |            0.6899 |         1      |     0.8165 |          0.6899 |            1323 |                 3218 |           69.8 |          1983.2 |     3371.5 |
+|  00000065 |          768 |                81.51 |         86.85 |                5.34 |                       91.53 |               100    |            0.7005 |         1      |     0.8239 |          0.7005 |             145 |                  237 |           32   |           455.1 |      851.5 |
+|  00000076 |         1486 |                81.83 |         90.85 |                9.02 |                       86.26 |               100    |            0.6386 |         0.992  |     0.777  |          0.6353 |             374 |                  681 |           35.9 |          1125.5 |     2267.5 |
+|  00000077 |         3911 |                67.86 |         81.44 |               13.58 |                       90.64 |               100    |            0.7571 |         1      |     0.8617 |          0.7571 |             268 |                  674 |          114.2 |          1089.7 |     1931.5 |
+|  00000091 |          874 |                83.75 |         88.67 |                4.92 |                       88.55 |               100    |            0.7284 |         0.9828 |     0.8367 |          0.7192 |             232 |                  378 |           23.4 |           509.9 |      913.1 |
+
+## Technical Failure Analysis & Cases Where HMM Does Not Help
+
+1. **Parallel Service Roads & Divided Freeways:** When two parallel roads run less than 8 meters apart with identical heading, spatial and transition penalties are near-identical. If GPS multipath pulls the vehicle across the median, the HMM may stick to the wrong parallel segment until an exit or turn reveals the deviation.
+2. **Large Time Gaps (>15s):** During tunnel passages or temporary tracking dropouts, vehicle displacement exceeds the local graph search radius. The chain reset mechanism correctly prevents unrealistic transition penalties, but relies more heavily on local emission probabilities at the gap exit.
+3. **Complex Intersections & U-Turns:** At multi-arc roundabouts and complex junctions, sharp heading changes combined with low speeds (< 1 m/s) produce noisy bearing alignment, requiring the transition model's graph shortest-path constraint to enforce continuity.
