@@ -1,0 +1,25 @@
+# Raw and Processed Datasets in root only (Do not ignore src/data/)
+/data/
+*.zip
+
+# Python Virtual Environments
+/.venv/
+env/
+venv/
+.Python
+*.py[cod]
+*$py.class
+__pycache__/
+
+# Testing and Caches
+.pytest_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+*.log
+*.db
+*.sqlite3
+
+# OS Specific
+.DS_Store
+Thumbs.db
