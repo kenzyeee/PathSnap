@@ -112,12 +112,17 @@ with st.sidebar:
 st.markdown('<div class="main-header">PathSnap: Distributed Map-Matching & Route Reconstruction</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Evaluator Interface (Laptop 2) connecting to Server Model & Decoder (Laptop 1)</div>', unsafe_allow_html=True)
 
-available_partitions = health.get("partitions", {}) if health else {}
-if not available_partitions:
-    available_partitions = {
-        "evaluator_test": ["00000015", "00000017", "00000023", "00000030", "00000049", "00000059", "00000067", "00000073", "00000087", "00000094"],
-        "student_test": ["00000000", "00000007", "00000009", "00000040", "00000052", "00000056", "00000065", "00000076", "00000077", "00000091"]
-    }
+# Default partitions so BOTH options ALWAYS appear
+DEFAULT_PARTITIONS = {
+    "evaluator_test": ["00000015", "00000017", "00000023", "00000030", "00000049", "00000059", "00000067", "00000073", "00000087", "00000094"],
+    "student_test": ["00000000", "00000007", "00000009", "00000040", "00000052", "00000056", "00000065", "00000076", "00000077", "00000091"]
+}
+
+available_partitions = DEFAULT_PARTITIONS.copy()
+if health and health.get("partitions"):
+    for part_name, tids in health["partitions"].items():
+        if tids:
+            available_partitions[part_name] = tids
 
 # Trip Selection Row
 col_part, col_sel, col_btn = st.columns([1.5, 2.5, 1])
