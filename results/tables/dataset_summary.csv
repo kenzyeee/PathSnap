@@ -1,0 +1,5 @@
+,trip_id,num_points,num_points,num_points,num_points,num_points,duration_s,duration_s,duration_s,dt_1s_pct,max_gap_s,max_gap_s,gaps_gt_5s,num_nodes,num_nodes,num_nodes,num_arcs,num_arcs,num_arcs,total_size_kb,total_size_kb,total_size_kb,total_size_kb
+,count,sum,mean,min,max,std,mean,min,max,mean,mean,max,sum,mean,min,max,mean,min,max,mean,min,max,sum
+partition,,,,,,,,,,,,,,,,,,,,,,,
+student_test,10,19160,1916.0,262,3958,1335.4323478018478,2025.0,265.0,4000.0,98.199,25.5,210.0,44,9068.9,1770,26635,18504.1,3577,56027,426.621,73.29,1179.14,4266.21
+train,80,208417,2605.2125,361,19313,3312.3453990910643,5680.4044875,451.0,154030.0,93.835875,2706.4,153064.0,1216,24168.5625,299,155003,48461.3,649,307392,1095.42775,53.38,6726.9,87634.22

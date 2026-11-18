@@ -1,0 +1,3 @@
+partition,num_trips,total_points,total_rows,positive_count,overall_cmr_pct,mean_perp_dist_gt,outlier_pct_gt
+train,80,208417,1782957,185993,10.759,9.654594039916992,2.9644920395666405
+student_test,10,19160,193309,19127,0.172,6.381637907028198,0.31034051563585446
